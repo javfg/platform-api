@@ -1,0 +1,48 @@
+name: Build docker image and publish to Quay.io and GAR
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      packages: write
+      contents: write
+      attestations: write
+      id-token: write
+
+    env:
+      TAG: ${{ github.ref_name }}
+
+    steps:
+      - id: checkout
+        name: Check out repo
+        uses: actions/checkout@v4
+
+      - id: scala-setup
+        name: Install Scala
+        uses: olafurpg/setup-scala@v11
+        with:
+          scala-version: 2.13.10
+          java-version: openjdk@1.11
+
+      - id: compile
+        name: split this later
+        run: |
+          sbt scalafmtCheckAll
+          sbt clean compile
+          sbt coverage "testOnly * -- -l test_configuration.IntegrationTestTag" coverageReport
+          sbt dist
+
+      - id: push-to-release
+        uses: xresloader/upload-to-github-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: 'target/universal/ot-platform-api-latest.zip'
+          tags: true
+          draft: true
